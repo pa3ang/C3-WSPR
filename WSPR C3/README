@@ -1,0 +1,82 @@
+/* WSPR beacon with WM-386 (ESP6288 clone),SI5351, SSD1306 0.91, TinyGSP" 
+
+Version 1.2
+  - changed gps/wifi routines 
+    1. if gps is enabled in configuration (default) then program will try to lock and get the time from the gps and update the locator
+          and if the gps is ok the program will create an AP to serve the configuration webpage on host ESP-WSPR IP: 192.168.4.1 
+    2. if no gps or no lock the WiFimanager will try to login to the given SSID network
+          and if done it will run the NTP routine and start a webservers on the assigned local IP address.
+    3. if no network connection established the program will create a captive page on ESP-WSPR 192.168.4.1 to cature the 
+          SSID and password. Therafter it will resync.
+  - changed pin assignments D5 and D7 vor LPF
+
+Version 1.1
+  - Added dloading default values when EEPROM has not ben used before
+  - corrected maidenhead.h library name
+  - improved calibration html page
+  - improved comments
+  - some cosmetic code changes
+
+Verion 1.0
+Modified and improved script from ESP_WSPR sketch from PD0GB and PA3FBX
+  - Web interface for configuration panel
+  - Calibration also via the web interface
+  - SSD1306 info panel texts completely revised
+  - Extra debug messages via Serial
+  - WSPR interval configurable via the web interface
+  - SI5351 CLK2 fixed at 10 MHz continuously for stabilization
+  - Warmup period removed 
+  - Cleanup of unused code and variables
+  - GPS support on PIO D3 (can conflict during boot / reset)
+  - Read locator from GPS when GPS is enabled
+
+Using a WM-386 (an ESP6288 clone variant).
+With this, we can build a WSPR transmitter with:
+  - Up to 3 bands with LPF switching (d5, D6, D7)
+  - Use the buildin led - D4 PIO for indicating Webinterface active
+  - Use a TinyGPS on PIO D3 
+  - Time Sync using NTP
+  - Provide a configuration possibility through WiFi accessable webwerver
+
+Time synchronization is selectable via WiFi NTP server or optional GPS.
+
+Hardware: Wemos D1 Mini, Si5351 module, 128x64 I2C OLED display, a few LEDs (optional)  
+
+On first startup, if no WiFi credentials are stored, the ESP will switch into Access Point mode.  
+SSID = "WSPR_ConfigAP"  no password.  
+
+Connect your phone/laptop to this network the captive portal is available at 192.168.4.1  
+A configuration page appears after can enter or select the avilable WiFi SSID and enter the password.
+Click “Save”. The ESP will then connect to your local WiFi.  
+ 
+The unit will restat an show the local WiFi IP adress on the SSD1306 screen during booting.
+Log in through your home network to enter the WSPR credetials and parameters:
+  - Callsign
+  - Locator
+  - dBm (output power setting)
+  - Calibration factor  (update through calibration routine)
+  - Transmission interval in minutes after start of message or cycle
+  - GPS enable/disable
+  - Band mask x y z selecting 40 meter, 20 meter, 10 meter or multiple
+  - GPS enable
+  - OLED rotate
+  - Reset WiFi - set to 9 to reseter the local WiFi SSID and Password 
+You can also switch the unit into Calibration or Testloop.
+
+
+//Used libraries  
+Etherkit Si5351 by Jason Mildrum, version 2.2.0  
+Etherkit JTEncode by Jason Mildrum, version 1.3.1  
+NTPtimeESP  
+TimeLib by Michael Margolis, version 1.6.1  
+WiFiManager by tzapu, version 2.0.17  
+Adafruit GFX Library by Adafruit, version 1.12.1  
+Adafruit SSD1306 by Adafruit, version 2.5.15  
+Adafruit BusIO (I2C)  
+EspSoftwareSerial by Dirk Kaar, version 8.1.0  
+TinyGPSPlus by Mikal Hart, version 1.0.3  
+Maidenhead by Mateusz Salwach, version 1.0.1  
+
+Version: 2025-10-04
+by Johan, PA3ANG
+https://github.com/pa3ang
