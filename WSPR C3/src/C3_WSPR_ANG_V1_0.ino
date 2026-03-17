@@ -259,7 +259,7 @@ const char* HEAD =
   "</head>" ;
 
 const char* FOOTER =
-  "<p style='font-size:10px; color:grey; text-align:center'>XIAO ESP32-C3, Version : ANG-V0.1, Mar-2026</p></body></html>";
+  "<p style='font-size:10px; color:grey; text-align:center'>XIAO ESP32-C3, Version : ANG-V1.0, Mar-2026</p></body></html>";
 
 // Individual html pages
 String htmlConfig() {
