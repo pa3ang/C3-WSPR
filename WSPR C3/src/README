@@ -1,0 +1,48 @@
+// WSPR beacon with SEEED XIAO ESP32 C3, SI5351.
+
+// Build-in webserver to configure and NTP connection in 'online' configuration
+// AP connect to enter WiFi Credentials or Webservice and manual time sync with button in 'offline' configuration
+
+// Re-adopted from the original idea from Benno PA3FBX and adapted by PD8GB, PA3FEX and PA3ANG
+// with ESP8266 and ESP_WSPR_ANG_V1_7 firmware.
+
+/*
+Using a SEEED ESP32 C3 and generic 25MHz Si5351 synthesizer board.
+With this, we can build a WSPR transmitter with:
+  - Up to 3 bands with one LPF (20,30,40m)  40 meter with limited suppresion
+  - Led with status indication
+  - Button to control configuration and when 'offline' synchronise timestart on even minute.
+  - If 'online' time sync. using NTP when connected to Internet
+  - Provide a configuration through WiFi accessable webwerver
+
+On first startup, if no WiFi credentials are stored, the ESP will switch into Access Point mode.  
+SSID = "C3-WSPR"  no password.  
+
+Connect your phone/laptop to this network the captive portal is available at 192.168.4.1  
+A configuration page appears after can enter or select the avilable WiFi SSID and enter the password.
+Click “Save”. The ESP will then connect to your local WiFi.  
+ 
+The unit will restart. Check your router for the assign IP adress to log-in to the webserer.
+When 'offline' connect the iPhone to the WiFi AP called "C3-WSPR" and go to IP: 192.168.4.1 in your brwoser.
+ 
+You will land on the status page and can advance to Configuration and the other pages:
+  - /           = status
+  - /config     = configuration
+  - /calibrate  = to caibrate the Si5351 against 10 kHz.
+  - /bands      = to select the bands based on the applied LPF.
+  - /txtest     = carrier on defined bands
+
+On fresh start the firware will create the default values into EEPROM. A magic value in the EEPROM will guide this.
+The firmware has an Easter Egg : Put ERASE in Locator for a full reset!
+
+Used libraries  
+  - Etherkit Si5351 by Jason Mildrum, version 2.2.0  
+  - Etherkit JTEncode by Jason Mildrum, version 1.3.1  
+  - NTPtimeESP  
+  - TimeLib by Michael Margolis, version 1.6.1  
+  - WiFiManager by tzapu, version 2.0.17  
+  - Adafruit BusIO (I2C) 
+   
+
+Version: 2026-03-12
+by Johan, PA3ANG
