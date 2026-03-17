@@ -1,0 +1,14 @@
+SEEED XIAO ESP32-C3 sketch for WSPR. 
+
+Sketch will compile on Arduino IDE and VSC.
+
+Hardware consits of SEEED XIAO ESP32-C3 and SI5351 syntisizer. Time syncronisation either via WiFi NTP server or manual by pressing knob on start of even minute.
+
+Firmware has a webservice to config , calibrate and test the unit.
+Unit has further a small amplifier with BS170 fet to raise the RF signal from 10 mW to 200 mW and additional LPF. 
+
+Futher info will be disclosed when available
+
+vy 73 de Johan, PA3ANG https://pa3ang.nl
+
+more info in my weblog https://pa3ang.nl/esp32-c3-wspr/
