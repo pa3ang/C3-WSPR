@@ -14,6 +14,7 @@ With this, we can build a WSPR transmitter with:
   - Button to control configuration and when 'offline' synchronise timestart on even minute.
   - If 'online' time sync. using NTP when connected to Internet
   - Provide a configuration through WiFi accessable webwerver
+  - Added restart during loop() / Idle time >> 2 seconds pressing the switch
 
 On first startup, if no WiFi credentials are stored, the ESP will switch into Access Point mode.  
 SSID = "C3-WSPR"  no password.  
@@ -65,11 +66,6 @@ https://github.com/pa3ang
 #define TONE_SPACING 146
 #define WSPR_DELAY 683
 #define SYMBOL_COUNT WSPR_SYMBOL_COUNT
-
-// NTP server
-#define SEND_INTV 10
-#define RECV_TIMEOUT 10
-#define TIME_ZONE -1.0f  // For Netherlands
 
 // EEPROM definition
 #define EEPROM_SIZE 512
@@ -204,8 +200,8 @@ void loadConfig() {
     config.interval = 4;
     config.ssid = 0;
     config.lpfIndex = 3;
-    strcpy(config.bands[1].bandname, "30m");  config.bands[1].nr = 1; config.bands[1].active = true;
-    strcpy(config.bands[2].bandname, "20m");  config.bands[2].nr = 2; config.bands[2].active = true;
+    strcpy(config.bands[0].bandname, "30m");  config.bands[0].nr = 0; config.bands[0].active = true;
+    strcpy(config.bands[1].bandname, "20m");  config.bands[1].nr = 1; config.bands[1].active = true;
   }
   // Easter egg to force reset 
   if (strcmp(config.loc, "ERASE") == 0) {
@@ -259,7 +255,7 @@ const char* HEAD =
   "</head>" ;
 
 const char* FOOTER =
-  "<p style='font-size:10px; color:grey; text-align:center'>XIAO ESP32-C3, Version : ANG-V1.0, Mar-2026</p></body></html>";
+  "<p style='font-size:10px; color:grey; text-align:center'>XIAO ESP32-C3, Version : ANG-V0.1, Mar-2026</p></body></html>";
 
 // Individual html pages
 String htmlConfig() {
@@ -349,12 +345,20 @@ void handleSave() {
     config.lpfIndex = server.arg("lpf").toInt();
   }
   LPFOption &lpf = lpfOptions[config.lpfIndex];
-  for (int i = 0; i < lpf.bandCount; i++) {
-    const char* band = lpf.bands[i];
-    bool active = server.hasArg(String("band_") + band);
-    strcpy(config.bands[i].bandname, band);
-    config.bands[i].nr = i;
-    config.bands[i].active = active;
+  // first disable all band
+  for (int i = 0; i < MAX_ACTIVE_BANDS; i++) {
+      config.bands[i].bandname[0] = 0; 
+      config.bands[i].nr = i;
+      config.bands[i].active = false;
+  }
+  // activate choosen band(s)
+  for (int i = 0; i < lpf.bandCount && i < MAX_ACTIVE_BANDS; i++) {
+      const char* band = lpf.bands[i];
+      bool active = server.hasArg(String("band_") + band);  // checkbox in form
+
+      strcpy(config.bands[i].bandname, band);
+      config.bands[i].nr = i;
+      config.bands[i].active = active;
   }
   saveConfig();
  
@@ -606,11 +610,36 @@ void setup() {
   digitalWrite(StatusLed, LOW);
   pinMode(buttonPin, INPUT_PULLUP);
 
-  // first load config from EEPROM
+  // First load config from EEPROM
   loadConfig();
   Serial.println("Config loaded:");
-  Serial.printf("Call=%s, Loc=%s, dBm=%d, Interval=%d, Cal=%d, WiFi Reset=%d\n",config.call, config.loc, config.dbm, config.interval, config.cal, config.ssid);
-  
+
+  // Print basic config
+  Serial.printf("Call=%s, Loc=%s, dBm=%d, Interval=%d, Cal=%d, WiFi Reset=%d\n",
+                config.call, config.loc, config.dbm, config.interval, config.cal, config.ssid);
+
+  // Print LPF and active bands with status
+  LPFOption &lpf = lpfOptions[config.lpfIndex];
+  Serial.printf("LPF Index=%d (%s)\n", config.lpfIndex, lpf.name);
+
+  // info per band within LPF
+  for (int i = 0; i < lpf.bandCount; i++) {
+      uint64_t freq = 0;
+      // search for frequency for this band
+      for (int j = 0; j < numStandardBands; j++) {
+          if (strcmp(config.bands[i].bandname, standardBands[j].name) == 0) {
+              freq = standardBands[j].freqHz;
+              break;
+          }
+      }
+      // active 0/1 to literal
+      const char* status = config.bands[i].active ? "active" : "not active";
+      // and print on cosole
+      Serial.println(String(config.bands[i].bandname) + " | " +
+                    String(freq / 1000000.0, 6) + " MHz | " +
+                    status);
+  }
+
   // initialise the Si5351
   cal_factor = config.cal; 
   si5351.init(SI5351_CRYSTAL_LOAD_10PF, 0, 0);
@@ -655,6 +684,7 @@ void setup() {
     WiFi.mode(WIFI_AP);
     WiFi.softAP("C3-WSPR", "");
     Serial.println("WiFi AP created");
+    Serial.println("IP address: 192.168.4.1");
 
     // and wait till user button is pressed indicating start of even minute
     while (digitalRead(buttonPin) == HIGH) {
@@ -674,10 +704,19 @@ void setup() {
     }
 
     // get the time from the given NTP server
-    epochUnixNTP();   
-    Serial.println("Connected to WiFi!"); Serial.print("IP address: "); Serial.println(WiFi.localIP());
+  
+    Serial.println("Connected to WiFi!"); 
+    Serial.print("IP address: "); Serial.println(WiFi.localIP());
+    epochUnixNTP();
   }
-   
+  
+  // clock set to
+  char buf[60];
+  sprintf(buf, "%02d:%02d:%02d UTC  %02d-%02d-%04d",
+          hour(), minute(), second(),
+          day(), month(), year());
+  Serial.println(buf);
+
   // Start WebServer and point to the individual pages 
   server.on("/", handleRoot);
   server.on("/save", HTTP_POST, handleSave);
@@ -686,7 +725,7 @@ void setup() {
   server.on("/status", handleStatus);
   server.on("/txtest", handleTXTest);
   server.begin();
-  Serial.println("Webserver started. Access via http://" + WiFi.localIP().toString());
+  Serial.println("Webserver started.");
   Serial.println("Setup complete.");
 
   // blink led 3 times indicating setup completed
@@ -696,6 +735,24 @@ void setup() {
 void loop() {
   server.handleClient();
   yield();
+
+  //debug
+  static unsigned long pressStart = 0;
+
+  if (digitalRead(buttonPin) == LOW) {
+    if (pressStart == 0) {
+      pressStart = millis();  // start timing
+    }
+
+    if (millis() - pressStart > 1000) {  // 1 seconde
+      Serial.println("Reboot by button");
+      delay(50);
+      while (digitalRead(buttonPin) == LOW); // wachten tot knop los
+      ESP.restart();
+    }
+  } else {
+    pressStart = 0;  // reset als knop losgelaten wordt
+  }
 
   // there must be a valid callsign
   if (strcmp(config.call, "NOCALL") == 0) {
@@ -807,32 +864,34 @@ void loop() {
 }
 
 time_t epochUnixNTP() {
-  // message on OLED
   Serial.print("Connecting to NTP Server: ");
   Serial.println(NTP_Server);
 
-  NTPch.setSendInterval(SEND_INTV);
-  NTPch.setRecvTimeout(RECV_TIMEOUT);
+  NTPch.setRecvTimeout(5000); // 5 seconds timeout
 
-  unsigned long startTime = millis();  // start for timeout
-  const unsigned long TIMEOUT = 60000; // 60 seconds
+  const int MAX_RETRIES = 8;
+  int retries = 0;
 
   do {
-    dateTime = NTPch.getNTPtime(TIME_ZONE, 1);
-    delay(1);
-    // check timeout
-    if (millis() - startTime >= TIMEOUT) {
-      Serial.println("ERROR: NTP connection timeout after 60 seconds.");
-      return 0;  
+    dateTime = NTPch.getNTPtime(0, 0); // UTC
+    retries++;
+
+    if (!dateTime.valid) {
+      Serial.println("NTP failed, retrying...");
+      delay(500); 
     }
-  } while (!dateTime.valid);
-  setTime(dateTime.hour, dateTime.minute, dateTime.second, dateTime.day, dateTime.month, dateTime.year);
-  char buf[60];
-  sprintf(buf, "%02d:%02d:%02d  %02d-%02d-%04d",
-        hour(), minute(), second(),
-        day(), month(), year());
-  Serial.println(buf); 
-  return 0;
+
+  } while (!dateTime.valid && retries < MAX_RETRIES);
+
+  if (!dateTime.valid) {
+    Serial.println("ERROR: NTP sync failed.");
+    return 0;
+  }
+
+  setTime(dateTime.hour, dateTime.minute, dateTime.second,
+          dateTime.day, dateTime.month, dateTime.year);
+
+  return now();
 }
 
 void encode() {
